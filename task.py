@@ -1,10 +1,21 @@
 import numpy as np
 from physics_sim import PhysicsSim
 
+def default_reward(task):
+    """Uses current pose of sim to return reward."""
+    reward = 1.-.3*(abs(task.sim.pose[:3] - task.target_pos)).sum()
+    return reward
+
 class Task():
     """Task (environment) that defines the goal and provides feedback to the agent."""
-    def __init__(self, init_pose=None, init_velocities=None, 
-        init_angle_velocities=None, runtime=5., target_pos=None):
+    def __init__(self, 
+                 init_pose=None, 
+                 init_velocities=None, 
+                 init_angle_velocities=None, 
+                 runtime=5., 
+                 target_pos=None,
+                 reward_fn=default_reward,
+                 action_repeat=3):
         """Initialize a Task object.
         Params
         ======
@@ -15,8 +26,9 @@ class Task():
             target_pos: target/goal (x,y,z) position for the agent
         """
         # Simulation
+        self.reward_fn = reward_fn
         self.sim = PhysicsSim(init_pose, init_velocities, init_angle_velocities, runtime) 
-        self.action_repeat = 3
+        self.action_repeat = action_repeat
 
         self.state_size = self.action_repeat * 6
         self.action_low = 0
@@ -26,10 +38,10 @@ class Task():
         # Goal
         self.target_pos = target_pos if target_pos is not None else np.array([0., 0., 10.]) 
 
-    def get_reward(self):
-        """Uses current pose of sim to return reward."""
-        reward = 1.-.3*(abs(self.sim.pose[:3] - self.target_pos)).sum()
-        return reward
+#     def get_reward(self):
+#         """Uses current pose of sim to return reward."""
+#         reward = 1.-.3*(abs(self.sim.pose[:3] - self.target_pos)).sum()
+#         return reward
 
     def step(self, rotor_speeds):
         """Uses action to obtain next state, reward, done."""
@@ -37,10 +49,10 @@ class Task():
         pose_all = []
         for _ in range(self.action_repeat):
             done = self.sim.next_timestep(rotor_speeds) # update the sim pose and velocities
-            reward += self.get_reward() 
+            reward += self.reward_fn(self) 
             pose_all.append(self.sim.pose)
         next_state = np.concatenate(pose_all)
-        return next_state, reward, done
+        return next_state, reward, done, {}
 
     def reset(self):
         """Reset the sim to start a new episode."""
