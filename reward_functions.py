@@ -39,3 +39,17 @@ def velocity_fn(task):
 # You can subtract angular velocity from the reward to make sure quadcopter flies straight up.
 # You can include some large bonus and penalty rewards also. Such as a bonus on achieving the target height and a penalty on crashing.
 # Clip your final reward between (-1, 1). It will definitely help in better performance.
+def reward_fn(task):
+    tgt = task.target_pos
+    pos = task.sim.pose[0:3]
+    vel = task.sim.v
+    if pos[-1] <= 0.0 and vel[-1] != 0.0:
+        #Big crash penalty
+        return -100.0
+    #Reward/penalize based on how close the velocity aligns with the vector to the target
+    v_reward = rfns.velocity_fn(task)
+    physical_dist = (abs(task.sim.pose[:3] - task.target_pos)).sum()
+    if physical_dist > 0:
+        physical_dist = 1.0 / physical_dist
+    ang_vel = (abs(task.sim.angular_v)).sum()
+    return min(max(v_reward + physical_dist - ang_vel, -1), 1)
